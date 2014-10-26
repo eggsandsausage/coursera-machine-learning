@@ -1,0 +1,59 @@
+```{r, echo=FALSE, message=FALSE}
+
+library(randomForest)
+library(caret)
+library(plyr)
+
+
+```
+
+Machine learning assignment: predict exercise classifications
+========================================================
+
+Goals of assignment
+
+1. Predict the "classe" variable.
+
+  a. Pick predictors
+  
+  b. Pick model
+  
+  c. Train model (use of cross validation)
+  
+2. Report out of sample error
+
+## 1a: Picking the predictors
+The test sets on which the final model was to be used on consists of 20 observations in a separate 20 by 160 matrix. However, out of these 160 variables, only 60 contains data. Since there would be no point in training a model on features that were not present in the testset, this was the first reduction of features. Furthermore, since the focus of the assignment was to predict classifications of exercise, I chose to remove the features that did not meassure actual sensor data related to lifting the weight (ie username, timestamps etc). 
+
+Training the model on the remaining variables did not seem computationally taxing, and since the final test set was somewhat sparse I chose to use all of them to maintain as high an accuracy as possible. The variables used as predictors are listed below.
+
+```{r, echo=FALSE}
+testFinal <- read.csv(file="/Users/hampus/coursera/data-science-specialization/machine-learning/assignment/pml-testing.csv")
+training <- read.csv(file="/Users/hampus/coursera/data-science-specialization/machine-learning/assignment/pml-training.csv")
+
+varSelection1 <- names(testFinal[,colSums(is.na(testFinal))<nrow(testFinal)])
+tsubset <- training[,c(varSelection1[-60], "classe")]
+testFinal2 <- testFinal[,c(varSelection1)]
+testFinal2 <- testFinal2[,-c(1:6,60)]
+names(testFinal2)
+```
+
+## 1b: Picking the model
+Two factors that were considered: accuracy and the large number of predictors. A large number of predictors could possibly lead to overfitting which would of course affect the final accuracy of the model. This could be countered by either reducing the number of predictors (either through PCA or some correlation analysis to find superfluous variables) or doing some kind of cross validation. However, since *random forests* provide both high accuracy and internal cross validation, this seemed like the way to go.
+
+## 1c: Training the model:
+When constructing trees in random forests, not all data is actually used in each iteration. About one third of the observations are out of bag (OOB) and are used for predicting an outcome of the constructed tree in a particular iteration. Since our model is trying to make classifications, the predictions will be summed and the majority prediction what the model finally delivers as its prediction. This is not entirely unlike cross validation, which also performs model construction over and over again, averaging out predictions into a final (hopefully) unbiased model. With large enough forrests, it can be shown that the OOB-error is virtually equivalent to the leave-one-out-cross-validation error. However, showing this might not be entirely within the scope of the assignment (plus it's getting kind of late), so below you'll find the results of a split into a training and test set, giving some indication of the out of sample error.
+
+```{r}
+
+intrain <- createDataPartition(y=tsubset$classe, p=0.6, list=F)
+trainingsub <- tsubset[intrain,]
+testsub <- tsubset[-intrain,]
+fitx <- randomForest(classe ~ ., data=trainingsub[,-c(1:6)], mtry=8, ntree=500)
+pred1 <- predict(fitx, testsub[,-c(1:6)])
+confusionMatrix(data=pred1, reference=testsub$classe)
+
+```
+
+## 2. Report out of sample error/conclusions
+Looking at the results above the model looks like it's working nicely with a 0.997 accuracy within a narrow confidence interval. On a side note the OOB-error of the model is 0.0037, stressing the previous point that cross validation was probably a superfluous step in this particular model construction.
